@@ -1,0 +1,1 @@
+add_library(BD BD.cpp BD.h)

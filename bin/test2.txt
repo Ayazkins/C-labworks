@@ -1,0 +1,1 @@
+tablename: hello;Attributes: int id , varchar name ;Row: 1, Ayaz,;
