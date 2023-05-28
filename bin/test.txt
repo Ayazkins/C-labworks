@@ -1,1 +1,1 @@
-tablename: hello;Attributes: int id , varchar name ;Row: Ayaz, 1,;
+tablename: users;Attributes: int PRIMARY KEY  id , varchar NOT KEY  name , varchar NOT KEY  email ;Row: 1, 'John', 'john@example.com',;

@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -16,8 +17,10 @@ class Columns {
  private:
   std::string name_;
   Type type_;
+  std::string key;
  public:
-  Columns(const std::string &name, const std::string &type) : name_(name) {
+  Columns(const std::string &name, const std::string &type, const std::string &key = "NOT_KEY")
+	  : name_(name), key(key) {
 	if (type == "int") {
 	  type_ = Type::INT;
 	} else if (type == "bool") {
@@ -33,18 +36,32 @@ class Columns {
   [[nodiscard]] std::string Name() const {
 	return name_;
   }
-  Type Type() const {
+  [[nodiscard]] Type Type() const {
 	return type_;
+  }
+
+  [[nodiscard]] std::string Key() const {
+	return key;
   }
 };
 
 struct Row {
   std::unordered_map<std::string, std::string> data;
- public:
   Row(const std::vector<std::string> &values, const std::vector<Columns> &attributes) {
 	for (size_t i = 0; i < attributes.size(); ++i) {
 	  data[attributes[i].Name()] = values[i];
 	}
+  }
+  Row(const std::vector<std::string> &values, const std::vector<std::string> &attributes) {
+	for (size_t i = 0; i < attributes.size(); ++i) {
+	  data[attributes[i]] = values[i];
+	}
+  }
+  bool operator==(const Row& val) const {
+	return data == val.data;
+  }
+  bool operator!=(const Row& val) const {
+	return data != val.data;
   }
 };
 
@@ -54,9 +71,9 @@ class Table {
   std::vector<Row> data_;
   std::vector<Columns> columns_;
  public:
-  Table(const std::string &name, const std::vector<std::pair<std::string, std::string>> &columns) : name_(name) {
+  Table(const std::string &name, const std::vector<std::vector<std::string>> &columns) : name_(name) {
 	for (const auto &x : columns) {
-	  columns_.emplace_back(x.first, x.second);
+	  columns_.emplace_back(x[0], x[1], x[2]);
 	}
   }
 
@@ -70,125 +87,48 @@ class Table {
 
 class MyCoolDB {
  private:
-  std::unordered_map<std::string, Table> tables_;
 
-  std::string TableName(const std::string& input) {
-	std::regex tableRegex("tablename: ([^;]+)");
-	std::smatch match;
-	std::regex_search(input, match, tableRegex);
-	std::string tablename = match[1];
-	return tablename;
-  }
+  static std::string TableName(const std::string &input);
 
-  std::vector<std::pair<std::string, std::string>> Attributes(const std::string& input) {
-	std::regex attributesRegex("Attributes: ([^;]+)");
-	std::smatch match;
-	std::regex_search(input, match, attributesRegex);
-	std::string attributes = match[1];
-	std::stringstream ss(attributes);
-	std::vector<std::pair<std::string, std::string>> values;
-	std::string token;
-	while (std::getline(ss, token, ',')) {
-	  std::stringstream tokenStream(token);
-	  std::string type, attribute;
-	  if (tokenStream >> type >> attribute) {
-		values.emplace_back(attribute, type);
-	  }
-	}
-	return values;
-  }
+  static std::vector<std::vector<std::string>> Attributes(const std::string &input);
 
-  std::vector<std::vector<std::string>> Rows(const std::string& input) {
-	std::regex rowRegex("Row: ([^;]+)");
-	std::regex valueRegex("(\\b[^,;]+)");
-	std::vector<std::string> rows;
-	std::smatch rowMatch;
-	std::string::const_iterator inputIt(input.cbegin()), inputEnd(input.cend());
-	while (std::regex_search(inputIt, inputEnd, rowMatch, rowRegex)) {
-	  std::string rowValues = rowMatch[1];
-	  rows.push_back(rowValues);
-	  inputIt = rowMatch[0].second;
-	}
-	std::vector<std::vector<std::string>> out;
-	for (const std::string& row : rows) {
-	  out.emplace_back();
-	  std::regex_iterator<std::string::const_iterator> valueIterator(row.cbegin(), row.cend(), valueRegex);
-	  std::regex_iterator<std::string::const_iterator> valueEnd;
-	  while (valueIterator != valueEnd) {
-		std::string value = (*valueIterator)[1];
-		out.back().emplace_back(value);
-		++valueIterator;
-	  }
-	}
-	return out;
-  }
+  static std::vector<std::vector<std::string>> Rows(const std::string &input);
 
-  void LoadLine(const std::string& line) {
-	Table table(TableName(line), Attributes(line));
-	for (const auto& x: Rows(line)) {
-	  table.Insert(x);
-	}
-	tables_[TableName(line)] = table;
-  }
+  void LoadLine(const std::string &line);
+
+  static void remove_special(std::string &val);
+
+  static std::vector<std::string> tokenize(const std::string &query, char symbol);
+
+  void Select(const std::smatch &match);
+
+  void Update(const std::smatch &match);
+
+  void Insert(const std::smatch &match);
+
+  void Create(const std::smatch &match);
+
+  void Delete(const std::smatch& match);
 
  public:
+  std::unordered_map<std::string, Table> tables_;
 
-  void createTable(const std::string &name, const std::vector<std::pair<std::string, std::string>> &attributes) {
-	  tables_[name] = Table(name, attributes);
+  void createTable(const std::string &name, const std::vector<std::vector<std::string>> &attributes) {
+	tables_[name] = Table(name, attributes);
   }
-  void dropTable(const std::string& name) {
+  void dropTable(const std::string &name) {
 	tables_.erase(name);
   }
-  void insert(const std::string& name, const std::vector<std::string> value) {
+  void insert(const std::string &name, const std::vector<std::string>& value) {
 	tables_[name].Insert(value);
   }
-  Table table(const std::string& name) {
+  Table table(const std::string &name) {
 	return tables_[name];
   }
 
-  void Upload(const std::string& file) {
-	std::ofstream output(file);
-	for (const auto& tablePair : tables_) {
-	  const std::string& tableName = tablePair.first;
-	  const Table& table = tablePair.second;
-	  output << "tablename: " << tableName << ";";
-	  output << "Attributes:";
-	  for (int i = 0; i < table.columns_.size(); ++i) {
-		output << ' ';
-		auto column = table.columns_[i];
-		if (column.Type() == Type::INT) {
-		  output << "int";
-		} else if (column.Type() == Type::BOOL) {
-		  output << "bool";
-		} else if (column.Type() == Type::VARCHAR) {
-		  output << "varchar";
-		} else if (column.Type() == Type::FLOAT) {
-		  output << "float";
-		} else if (column.Type() == Type::DOUBLE) {
-		  output << "double";
-		}
-		output << " " << column.Name() << ' ';
-		if (i != table.columns_.size() - 1)
-			output << ",";
-	  }
-	  output << ";";
-	  for (const Row& row : table.data_) {
-		output << "Row:";
-		for (const auto& entry : row.data) {
-		  output << " " << entry.second << ',';
-		}
-		output << ";";
-	  }
-	}
-	output.close();
-  }
+  void SaveTofIle(const std::string &file);
 
-  void LoadTables(const std::string& file) {
-	std::ifstream input(file);
-	std::string line;
-	while (std::getline(input, line)) {
-	  LoadLine(line);
-	}
-  }
+  void LoadTables(const std::string &file);
 
+  void Parse(const std::string &query);
 };

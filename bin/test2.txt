@@ -1,1 +1,1 @@
-tablename: hello;Attributes: int id , varchar name ;Row: 1, Ayaz,;
+tablename: hello;Attributes: int NOT_KEY id , varchar NOT_KEY name ;Row: 1, Ayaz,;
