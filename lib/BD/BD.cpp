@@ -4,46 +4,46 @@ void MyCoolDB::LoadTables(const std::string &file) {
   std::ifstream input(file);
   std::string line;
   while (std::getline(input, line)) {
-	LoadLine(line);
+	this -> Parse(line);
   }
 }
 void MyCoolDB::SaveTofIle(const std::string &file) {
   std::ofstream output(file);
   for (const auto &tablePair : tables_) {
-	const std::string &tableName = tablePair.first;
-	const Table &table = tablePair.second;
-	output << "tablename: " << tableName << ";";
-	output << "Attributes:";
-	for (int i = 0; i < table.columns_.size(); ++i) {
-	  output << ' ';
-	  auto column = table.columns_[i];
-	  if (column.Type() == Type::INT) {
-		output << "int";
-	  } else if (column.Type() == Type::BOOL) {
-		output << "bool";
-	  } else if (column.Type() == Type::VARCHAR) {
-		output << "varchar";
-	  } else if (column.Type() == Type::FLOAT) {
-		output << "float";
-	  } else if (column.Type() == Type::DOUBLE) {
-		output << "double";
+	std::string create;
+	create = "CREATE TABLE " + tablePair.first + " (";
+	std::string buff = "(";
+	for (auto x : tables_[tablePair.first].columns_) {
+	  create += x.Name() + ' ';
+	  buff += x.Name() + ", ";
+	  if (x.Type() == Type::INT) {
+		create += "int ";
+	  } else if (x.Type() == Type::BOOL) {
+		create += "bool ";
+	  } else if (x.Type() == Type::VARCHAR) {
+		create += "varchar ";
+	  } else if (x.Type() == Type::FLOAT) {
+		create += "float ";
+	  } else if (x.Type() == Type::DOUBLE) {
+		create += "double ";
 	  }
-	  output << " ";
-	  output << column.Key() << " ";
-	  output << column.Name() << ' ';
-	  if (i != table.columns_.size() - 1)
-		output << ",";
+	  create += x.Key() + ", ";
 	}
-	output << ";";
-
-	for (int i = 0; i < table.data_.size(); ++i) {
-	  output << "Row:";
-	  for (const auto &entry : table.columns_) {
-		output << " " << table.data_[i].data.find(entry.Name())->second << ',';
+	buff = buff.substr(0, buff.size() - 2);
+	create = create.substr(0, create.size() - 2);
+	buff += ")";
+	create += ");\n";
+	output << create;
+	std::string insert;
+	for (auto row : tables_[tablePair.first].data_) {
+	  insert = "INSERT INTO " + tablePair.first + ' ' + buff + " VALUES (";
+	  for (auto x : tables_[tablePair.first].columns_) {
+		insert += row.data[x.Name()] + ", ";
 	  }
-	  output << ";";
+	  insert = insert.substr(0, insert.size() - 2);
+	  insert += ");\n";
+	  output << insert;
 	}
-	output << "\n";
   }
 
   output.close();
@@ -88,12 +88,8 @@ std::vector<std::vector<std::string>> MyCoolDB::Attributes(const std::string &in
   std::vector<std::vector<std::string>> values;
   std::string token;
   while (std::getline(ss, token, ',')) {
-	std::stringstream tokenStream(token);
-	std::string type, attribute, key;
-	if (tokenStream >> type >> key >> attribute) {
-	  std::cout << type << ' ' << key << ' ' << attribute << '\n';
-	  values.push_back({type, key, attribute});
-	}
+	std::vector<std::string> tokens = tokenize(token, ' ');
+	values.push_back({tokens[0], tokens[1], tokens[2]});
   }
   return values;
 }

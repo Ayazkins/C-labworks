@@ -17,10 +17,11 @@ class Columns {
  private:
   std::string name_;
   Type type_;
-  std::string key;
+  std::string key_;
  public:
   Columns(const std::string &name, const std::string &type, const std::string &key = "NOT_KEY")
-	  : name_(name), key(key) {
+	  : name_(name) {
+	key_ = key.substr(0, key.find(' ')) + "_" + key.substr(key.find(' ') + 1, std::string::npos);
 	if (type == "int") {
 	  type_ = Type::INT;
 	} else if (type == "bool") {
@@ -41,7 +42,7 @@ class Columns {
   }
 
   [[nodiscard]] std::string Key() const {
-	return key;
+	return key_;
   }
 };
 
