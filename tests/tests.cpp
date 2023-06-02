@@ -72,7 +72,7 @@ TEST(SQL_TEST, SELEST) {
   B.Parse("CREATE TABLE users (id int PRIMARY KEY, name varchar, email varchar);");
   B.Parse("INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com');");
   B.Parse("INSERT INTO users (id, name, email) VALUES (2, 'Emma', 'emma@example.com');");
-  B.Parse("SELECT name, email FROM users WHERE id = 2, name = Emma;");
+  B.Parse("SELECT name, email FROM users WHERE id = 1 OR name = 'Emma';");
 }
 
 TEST(SQL_TEST, SAVE_LOAD) {
@@ -81,7 +81,27 @@ TEST(SQL_TEST, SAVE_LOAD) {
   B.Parse("INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com');");
   B.Parse("INSERT INTO users (id, name, email) VALUES (2, 'Emma', 'emma@example.com');");
   B.SaveTofIle("C:\\Users\\10a-y\\CLionProjects\\labwork-12-Ayazkins\\tests\\testing.txt");
-  MyCoolDB C;
-  C.LoadTables("C:\\Users\\10a-y\\CLionProjects\\labwork-12-Ayazkins\\tests\\testing.txt");
-  C.Parse("SELECT * FROM users");
+  B.Parse("DROP TABLE users;");
+  B.LoadTables("C:\\Users\\10a-y\\CLionProjects\\labwork-12-Ayazkins\\tests\\testing.txt");
+  B.Parse("SELECT * FROM users;");
+}
+
+TEST(SQL_TEST, JOIN) {
+  MyCoolDB b;
+  b.Parse("CREATE TABLE Users (id INT, UserName VARCHAR);");
+  b.Parse("INSERT INTO Users (id, UserName) VALUES (4, 'John Doe');");
+  b.Parse("INSERT INTO Users (id, UserName) VALUES (2, 'Jane Smith');");
+  b.Parse("INSERT INTO Users (id, UserName) VALUES (3, 'Bob Johnson');");
+
+  b.Parse("CREATE TABLE Songs (SongId INT, SongName VARCHAR);");
+
+  b.Parse("INSERT INTO Songs (SongId, SongName) VALUES (3, 'Sleep');");
+  b.Parse("INSERT INTO Songs (SongId, SongName) VALUES (1, 'Relax');");
+  b.Parse("INSERT INTO Songs (SongId, SongName) VALUES (3, 'Chill');");
+  b.Parse("INSERT INTO Songs (SongId, SongName) VALUES (4, 'Have fun');");
+  b.Parse("SELECT * FROM Users INNER JOIN Songs ON Users.id = Songs.SongId;");
+  std::cout << "LEFT JOIN TEST\n";
+  b.Parse("SELECT * FROM Users LEFT JOIN Songs ON Users.id = Songs.SongId;");
+  std::cout << "RIGHT JOIN TEST\n";
+  b.Parse("SELECT * FROM Users RIGHT JOIN Songs ON Users.id = Songs.SongId;");
 }

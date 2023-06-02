@@ -4,7 +4,7 @@ void MyCoolDB::LoadTables(const std::string &file) {
   std::ifstream input(file);
   std::string line;
   while (std::getline(input, line)) {
-	this -> Parse(line);
+	this->Parse(line);
   }
 }
 void MyCoolDB::SaveTofIle(const std::string &file) {
@@ -127,10 +127,13 @@ void MyCoolDB::Parse(const std::string &query) {
 		Insert(match);
 	  }
 	} else if (keyword == "SELECT") {
-
+	  std::regex join
+		  ("^" "SELECT (.+) FROM\\s+(\\w+)\\s+(INNER|LEFT|RIGHT)\\s+JOIN\\s+(\\w+)\\s+ON (.+)(?:\\s+(WHERE) (.+))?;");
 	  std::regex for_create("^" "(SELECT) (.+) (FROM) (\\w+)(?: (WHERE) (.+))?;");
 	  if (std::regex_search(usable_query, match, for_create)) {
 		Select(match);
+	  } else if (std::regex_search(usable_query, match, join)) {
+		Join(match);
 	  }
 	} else if (keyword == "UPDATE") {
 	  std::regex for_create("^" "(UPDATE) (\\w+) (SET) ([^;]+);");
@@ -164,7 +167,7 @@ void MyCoolDB::Delete(const std::smatch &match) {
   std::vector<Row> change;
   for (auto &x : table.data_) {
 	bool flag = true;
-	for (const auto& cond : conditions) {
+	for (const auto &cond : conditions) {
 	  if (x.data[cond.first] != cond.second) {
 		flag = false;
 		break;
@@ -253,11 +256,28 @@ void MyCoolDB::Update(const std::smatch &match) {
   std::regex where_regex("\\s*([^\\s]+)\\s*([=])\\s*([^\\s\\,]+)\\s*");
   std::smatch where_match;
   std::vector<std::pair<std::string, std::string>> conditions;
+  std::vector<std::pair<bool, bool>> and_or_vector;
+
   while (std::regex_search(where, where_match, where_regex)) {
 	std::string attribute_name = where_match[1];
 	std::string value = where_match[3];
 	remove_special(attribute_name);
 	remove_special(value);
+
+	std::regex and_or_regex("^" "\\s+(AND|OR)");
+	std::smatch and_or;
+	bool and_ = false;
+	bool or_ = false;
+	if (std::regex_search(where, and_or, and_or_regex)) {
+	  if (and_or[1] == "OR") {
+		or_ = true;
+	  } else {
+		and_ = true;
+	  }
+	} else {
+	  and_ = true;
+	}
+	and_or_vector.emplace_back(or_, and_);
 	conditions.emplace_back(attribute_name, value);
 	where = where_match.suffix().str();
   }
@@ -270,12 +290,22 @@ void MyCoolDB::Update(const std::smatch &match) {
 	return;
   }
   std::vector<Row *> change;
+  int index = 0;
   for (auto &x : table.data_) {
 	bool flag = true;
-	for (const auto& cond : conditions) {
-	  if (x.data[cond.first] != cond.second) {
+	index = 0;
+	int check = 0;
+	for (const auto &cond : conditions) {
+	  if (x.data[cond.first] != cond.second && and_or_vector[index].second) {
 		flag = false;
 		break;
+	  } else if (x.data[cond.first] == cond.second && and_or_vector[index].first) {
+
+	  }
+	  ++check;
+	  if (check == 2) {
+		index = 0;
+		check = 0;
 	  }
 	}
 	if (flag) {
@@ -283,7 +313,7 @@ void MyCoolDB::Update(const std::smatch &match) {
 	}
   }
   for (auto x : change) {
-	for (const auto& news : attributes_values) {
+	for (const auto &news : attributes_values) {
 	  (*x).data[news.first] = news.second;
 	}
   }
@@ -309,14 +339,32 @@ void MyCoolDB::Select(const std::smatch &match) {
 	}
   }
   std::cout << '\n';
-  std::regex where_regex("\\s*([^\\s]+)\\s*([=])\\s*([^\\s]+)\\s*");
+  std::regex where_regex("\\s*([^\\s]+)\\s*([=])\\s*([^\\s\\,]+)\\s*");
   std::smatch where_match;
   std::vector<std::pair<std::string, std::string>> conditions;
+  std::vector<std::pair<bool, bool>> and_or_vector;
   while (std::regex_search(where, where_match, where_regex)) {
 	std::string attribute_name = where_match[1];
 	std::string value = where_match[3];
 	remove_special(attribute_name);
 	remove_special(value);
+
+	std::regex and_or_regex("(AND|OR)");
+	std::smatch and_or;
+	bool and_ = false;
+	bool or_ = false;
+	if (std::regex_search(where, and_or, and_or_regex)) {
+	  std::string operator_ = and_or[1];
+	  remove_special(operator_);
+	  if (operator_ == "OR") {
+		or_ = true;
+	  } else {
+		and_ = true;
+	  }
+	} else {
+	  and_ = true;
+	}
+	and_or_vector.emplace_back(or_, and_);
 	conditions.emplace_back(attribute_name, value);
 	where = where_match.suffix().str();
   }
@@ -337,19 +385,29 @@ void MyCoolDB::Select(const std::smatch &match) {
 	return;
   }
   std::vector<Row> change;
+  int index = 0;
   for (auto &x : table.data_) {
 	bool flag = true;
-	for (const auto& cond : conditions) {
-	  if (x.data[cond.first] != cond.second) {
+	index = 0;
+	int check = 0;
+	for (const auto &cond : conditions) {
+	  if (x.data[cond.first] != cond.second && and_or_vector[index].second) {
 		flag = false;
 		break;
+	  } else if (x.data[cond.first] == cond.second && and_or_vector[index].first) {
+
+	  }
+	  ++check;
+	  if (check == 2) {
+		++index;
+		check = 0;
 	  }
 	}
 	if (flag) {
 	  change.emplace_back(x);
 	}
   }
-  for (auto& row : change) {
+  for (auto &row : change) {
 	for (const auto &column : columns) {
 	  if (row.data.find(column) != row.data.end()) {
 		std::cout << row.data[column];
@@ -384,5 +442,117 @@ void MyCoolDB::remove_special(std::string &val) {
 					 val.find_last_not_of(not_allowed) - val.find_first_not_of(not_allowed) + 1);
   } else {
 	val.clear();
+  }
+}
+void MyCoolDB::Join(const std::smatch &match) {
+  std::string attributes = match[1];
+  std::string type = match[3];
+  std::string on = match[5];
+  std::string where = match[6];
+  Table &table = tables_[match[2]];
+  Table &add_table = tables_[match[4]];
+  std::vector<std::string> attributes_vec;
+
+  if (attributes == "*") {
+	for (const auto &attribute : table.columns_) {
+	  attributes_vec.emplace_back(table.name_ + '.' + attribute.Name());
+	}
+	for (const auto &attribute : add_table.columns_) {
+	  attributes_vec.emplace_back(add_table.name_ + '.' + attribute.Name());
+	}
+  } else {
+	attributes_vec = tokenize(attributes, ',');
+  }
+
+  std::vector<std::string> table_attributes;
+  std::vector<std::string> join_attributes;
+  for (auto &a : attributes_vec) {
+	remove_special(a);
+	std::string table_of_attribute_str = a.substr(0, a.find('.'));
+	std::string name_of_attribute = a.substr(a.find('.') + 1);
+	if (table_of_attribute_str == match[2]) {
+	  table_attributes.emplace_back(name_of_attribute);
+	} else if (table_of_attribute_str == match[4]) {
+	  join_attributes.emplace_back(name_of_attribute);
+	}
+  }
+  for (const auto &x : attributes_vec) {
+	std::cout << x;
+	if (x != *(attributes_vec.end() - 1)) {
+	  std::cout << " | ";
+	} else {
+	  std::cout << '\n';
+	}
+  }
+  std::regex for_conditon("\\s*([^\\s]+)\\s*=\\s*([^\\s\\,]+)\\s*");
+  std::smatch condition;
+
+  std::vector<std::pair<Row, Row>> rows;
+  std::unordered_map<std::string, int> check;
+  std::vector<Row> unused_left;
+  std::vector<Row> unused_right;
+  if (std::regex_search(on, condition, for_conditon)) {
+	std::string left = condition[1];
+	std::string right = condition[2];
+	std::string left_attribute_name = left.substr(left.find('.') + 1);
+	std::string right_attribute_name = right.substr(right.find('.') + 1);
+	bool flag;
+	for (auto x : table.data_) {
+	  flag = false;
+	  for (auto y : add_table.data_) {
+		if (!x.data[left_attribute_name].empty() && x.data[left_attribute_name] == y.data[right_attribute_name]) {
+		  rows.emplace_back(x, y);
+		  //std::cout << "check" <<  x.data[left_attribute_name] << ' ' << y.data[right_attribute_name];
+		  flag = true;
+		}
+	  }
+	  if (!flag)
+	  unused_left.emplace_back(x);
+	}
+
+	for (auto x : add_table.data_) {
+	  flag = false;
+	  for (auto y : table.data_) {
+		if (!x.data[right_attribute_name].empty() && x.data[right_attribute_name] == y.data[left_attribute_name]) {
+		  flag = true;
+		}
+	  }
+	  if (!flag)
+	  unused_right.emplace_back(x);
+	}
+  }
+
+  for (auto y : rows) {
+	for (const auto& x : table.columns_) {
+	  std::cout << y.first.data[x.Name()] << " | ";
+	}
+	for (const auto& x: add_table.columns_) {
+	  std::cout << y.second.data[x.Name()] << " | ";
+	}
+	std::cout << '\n';
+  }
+
+  if (type == "LEFT") {
+	for (auto unused: unused_left) {
+	  for (auto &x : table.columns_) {
+		std::cout << unused.data[x.Name()] << " | ";
+	  }
+	  for (const auto& x : add_table.columns_) {
+		std::cout << "NULL" << " | ";
+	  }
+	  std::cout << '\n';
+	}
+  }
+
+  if (type == "RIGHT") {
+	for (auto unused: unused_right) {
+	  for (const auto& x : table.columns_) {
+		std::cout << "NULL" << " | ";
+	  }
+	  for (const auto &x : add_table.columns_) {
+		std::cout << unused.data[x.Name()] << " | ";
+	  }
+	  std::cout << '\n';
+	}
   }
 }

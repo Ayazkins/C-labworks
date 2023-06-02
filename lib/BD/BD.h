@@ -111,6 +111,8 @@ class MyCoolDB {
 
   void Delete(const std::smatch& match);
 
+  void Join(const std::smatch& match);
+
  public:
   std::unordered_map<std::string, Table> tables_;
 
