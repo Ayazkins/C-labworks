@@ -13,7 +13,7 @@ void MyCoolDB::SaveTofIle(const std::string &file) {
 	std::string create;
 	create = "CREATE TABLE " + tablePair.first + " (";
 	std::string buff = "(";
-	for (auto x : tables_[tablePair.first].columns_) {
+	for (const auto& x : tables_[tablePair.first].columns_) {
 	  create += x.Name() + ' ';
 	  buff += x.Name() + ", ";
 	  if (x.Type() == Type::INT) {
@@ -219,6 +219,16 @@ void MyCoolDB::Insert(const std::smatch &match) {
   for (size_t i = 0; i < attributes.size(); ++i) {
 	remove_special(values[i]);
 	remove_special(attributes[i]);
+	for (const auto & x : table.columns_) {
+	  if (x.Name() == attributes[i] && x.Key() == "PRIMARY KEY") {
+		for (auto y : table.data_) {
+		  if (y.data[attributes[i]] == values[i]) {
+			throw std::logic_error ("PRIMARY KEY!!!!!");
+		  }
+		}
+	  }
+	}
+
   }
   Row row(values, attributes);
   table.data_.emplace_back(row);

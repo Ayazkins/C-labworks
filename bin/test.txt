@@ -1,1 +1,2 @@
-tablename: users;Attributes: int PRIMARY KEY  id , varchar NOT KEY  name , varchar NOT KEY  email ;Row: 1, 'John', 'john@example.com',;
+CREATE TABLE users (id int PRIMARY_KEY, name varchar NOT_KEY, email varchar NOT_KEY);
+INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com');

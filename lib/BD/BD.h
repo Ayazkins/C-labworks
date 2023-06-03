@@ -1,5 +1,6 @@
 #pragma once
 #include <iostream>
+#include <utility>
 #include <vector>
 #include <unordered_map>
 #include <fstream>
@@ -19,8 +20,8 @@ class Columns {
   Type type_;
   std::string key_;
  public:
-  Columns(const std::string &name, const std::string &type, const std::string &key = "NOT_KEY")
-	  : name_(name) {
+  Columns(std::string name, const std::string &type, const std::string &key = "NOT_KEY")
+	  : name_(std::move(name)) {
 	key_ = key.substr(0, key.find(' ')) + "_" + key.substr(key.find(' ') + 1, std::string::npos);
 	if (type == "int") {
 	  type_ = Type::INT;
@@ -72,7 +73,7 @@ class Table {
   std::vector<Row> data_;
   std::vector<Columns> columns_;
  public:
-  Table(const std::string &name, const std::vector<std::vector<std::string>> &columns) : name_(name) {
+  Table(std::string name, const std::vector<std::vector<std::string>> &columns) : name_(std::move(name)) {
 	for (const auto &x : columns) {
 	  columns_.emplace_back(x[0], x[1], x[2]);
 	}
