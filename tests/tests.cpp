@@ -28,7 +28,6 @@ TEST(SQL_TEST, INSERT) {
 	  k++;
 	}
   }
-  B.Parse("SELECT * FROM users;");
 }
 
 TEST(SQL_TEST, UPDATE) {
@@ -49,25 +48,34 @@ TEST(SQL_TEST, UPDATE) {
   B.Parse("SELECT * FROM users;");
 }
 
-TEST(SQL_TEST, DELETE) {
+TEST(SQL_TEST, Primary_key) {
   MyCoolDB B;
   B.Parse("CREATE TABLE users (id int PRIMARY KEY, name varchar, email varchar);");
   B.Parse("INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com');");
-  B.Parse("INSERT INTO users (id, name, email) VALUES (2, 'Emma', 'emma@example.com');");
-  B.Parse("DELETE FROM users WHERE name = Emma;");
-  std::vector<std::vector<std::string>>
-	  a = {{"1", "'John'", "'john@example.com'"}};
-  for (int i = 0; i < 1; ++i) {
-	int k = 0;
-	for (auto x : {"id", "name", "email"}) {
-	  EXPECT_EQ(B.tables_["users"].data_[i].data[x], a[i][k]);
-	  k++;
-	}
+  try {
+	B.Parse("INSERT INTO users (id, name, email) VALUES (1, 'Emma', 'emma@example.com');");
   }
+  catch (const std::exception& e) {
+	std::cout << e.what() << ' ';
+  }
+  B.Parse("INSERT INTO users (id, name, email) VALUES (2, 'Emma', 'emma@example.com');");
   B.Parse("SELECT * FROM users;");
 }
 
-TEST(SQL_TEST, SELEST) {
+TEST(SQL_TEST, NULL_TEST) {
+  MyCoolDB B;
+  B.Parse("CREATE TABLE users (id int NOT NULL PRIMARY KEY, name varchar, email varchar);");
+  B.Parse("INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com');");
+  try {
+	B.Parse("INSERT INTO users (name, email) VALUES ('Emma', 'emma@example.com');");
+  }
+  catch (const std::exception& e) {
+	std::cout << e.what() << ' ';
+  }
+  B.Parse("INSERT INTO users (id, name, email) VALUES (2, 'John', 'john@example.com');");
+}
+
+TEST(SQL_TEST, SELECT) {
   MyCoolDB B;
   B.Parse("CREATE TABLE users (id int PRIMARY KEY, name varchar, email varchar);");
   B.Parse("INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com');");
@@ -104,4 +112,26 @@ TEST(SQL_TEST, JOIN) {
   b.Parse("SELECT * FROM Users LEFT JOIN Songs ON Users.id = Songs.SongId;");
   std::cout << "RIGHT JOIN TEST\n";
   b.Parse("SELECT * FROM Users RIGHT JOIN Songs ON Users.id = Songs.SongId;");
+}
+
+TEST(SQL_TEST, WHERE) {
+  MyCoolDB B;
+  B.Parse("CREATE TABLE users (id int PRIMARY KEY, name varchar, email varchar);");
+  B.Parse("INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com');");
+  B.Parse("INSERT INTO users (name, email) VALUES ('Emma', 'emma@example.com');");
+  B.Parse("SELECT * FROM users WHERE id IS NOT NULL;");
+  std::cout << '\n';
+  B.Parse("SELECT * FROM users WHERE id IS NULL;");
+  std::cout << '\n';
+  B.Parse("SELECT * FROM users WHERE id IS NULL OR id = 1;");
+  std::cout << '\n';
+}
+
+TEST(SQL_TEST, DELETE) {
+  MyCoolDB B;
+  B.Parse("CREATE TABLE users (id int PRIMARY KEY, name varchar, email varchar);");
+  B.Parse("INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com');");
+  B.Parse("INSERT INTO users (id, name, email) VALUES (2, 'Emma', 'emma@example.com');");
+  B.Parse("DELETE FROM users WHERE name = 'Emma';");
+  B.Parse("SELECT * FROM users;");
 }

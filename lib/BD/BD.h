@@ -19,10 +19,14 @@ class Columns {
   std::string name_;
   Type type_;
   std::string key_;
+  bool not_null_ = false;
  public:
-  Columns(std::string name, const std::string &type, const std::string &key = "NOT_KEY")
+  Columns(std::string name, const std::string &type, const std::string &key = "NOT KEY", const std::string& not_null = "null")
 	  : name_(std::move(name)) {
-	key_ = key.substr(0, key.find(' ')) + "_" + key.substr(key.find(' ') + 1, std::string::npos);
+	key_ = key;
+	if (not_null == "not null") {
+	  not_null_ = true;
+	}
 	if (type == "int") {
 	  type_ = Type::INT;
 	} else if (type == "bool") {
@@ -40,6 +44,10 @@ class Columns {
   }
   [[nodiscard]] Type Type() const {
 	return type_;
+  }
+
+  [[nodiscard]] bool NotNull() const {
+	return not_null_;
   }
 
   [[nodiscard]] std::string Key() const {
@@ -75,7 +83,7 @@ class Table {
  public:
   Table(std::string name, const std::vector<std::vector<std::string>> &columns) : name_(std::move(name)) {
 	for (const auto &x : columns) {
-	  columns_.emplace_back(x[0], x[1], x[2]);
+	  columns_.emplace_back(x[0], x[1], x[2], x[3]);
 	}
   }
 

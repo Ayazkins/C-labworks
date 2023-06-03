@@ -110,6 +110,7 @@ void MyCoolDB::Parse(const std::string &query) {
 	std::string keyword = match[1];
 	std::string text = match[2];
 	remove_special(keyword);
+	remove_special(text);
 	if (keyword == "DROP TABLE") {
 	  auto it = tables_.find(text);
 	  if (it != tables_.end()) {
@@ -153,24 +154,59 @@ void MyCoolDB::Parse(const std::string &query) {
 void MyCoolDB::Delete(const std::smatch &match) {
   Table &table = tables_[match[2]];
   std::string where = match[4];
-  std::regex where_regex("\\s*([^\\s]+)\\s*([=])\\s*([^\\s\\,]+)\\s*");
-  std::vector<std::pair<std::string, std::string>> conditions;
+  std::regex where_regex(R"(\s*(\w+)\s*(=|IS)\s*(NOT\s*NULL|NULL|'?\w+\'?))");
   std::smatch where_match;
+  std::vector<std::pair<std::string, std::string>> conditions;
+  std::vector<std::pair<bool, bool>> and_or_vector;
   while (std::regex_search(where, where_match, where_regex)) {
 	std::string attribute_name = where_match[1];
 	std::string value = where_match[3];
+	std::string operator_ = where_match[2];
+	remove_special(operator_);
 	remove_special(attribute_name);
 	remove_special(value);
+	if (operator_ == "IS") {
+	  if (value == "NULL") {
+		value = "NULL";
+	  } else if (value == "NOT NULL") {
+		value = "\\special\\";
+	  }
+	}
+	std::regex and_or_regex("(AND|OR)");
+	std::smatch and_or;
+	bool and_ = false;
+	bool or_ = false;
+	if (std::regex_search(where, and_or, and_or_regex)) {
+	  std::string operator_ = and_or[1];
+	  remove_special(operator_);
+	  if (operator_ == "OR") {
+		or_ = true;
+	  } else {
+		and_ = true;
+	  }
+	} else {
+	  and_ = true;
+	}
+	and_or_vector.emplace_back(or_, and_);
 	conditions.emplace_back(attribute_name, value);
 	where = where_match.suffix().str();
   }
   std::vector<Row> change;
+  int index = 0;
   for (auto &x : table.data_) {
-	bool flag = true;
+	std::vector<bool> conditions_result;
 	for (const auto &cond : conditions) {
-	  if (x.data[cond.first] != cond.second) {
-		flag = false;
-		break;
+	  conditions_result.emplace_back(x.data[cond.first] == cond.second || (!x.data[cond.first].empty() && cond.second == "\\special\\") || (x.data[cond.first] == cond.second));
+	}
+	bool flag = conditions_result[0];
+	int j = 1;
+	for (int i = 0; i < conditions_result.size() - 1; ++i) {
+	  if (and_or_vector[i].first) {
+		flag = flag || conditions_result[j];
+		j++;
+	  } else if (and_or_vector[i].second) {
+		flag = flag && conditions_result[j];
+		j++;
 	  }
 	}
 	if (flag) {
@@ -200,14 +236,17 @@ void MyCoolDB::Create(const std::smatch &match) {
 	remove_special(x);
 	auto column = tokenize(x, ' ');
 	std::string key = "NOT KEY";
+	std::string not_null = "null";
 	for (size_t i = 0; i < column.size(); ++i) {
 	  if (i + 1 < x.size()) {
 		if ((column[i] == "PRIMARY" || column[i] == "FOREIGN") && column[i + 1] == "KEY") {
 		  key = column[i] + ' ' + column[i + 1];
+		} else if (column[i] == "NOT" && column[i + 1] == "NULL") {
+		  not_null = "not null";
 		}
 	  }
 	}
-	attributes.push_back({column[0], column[1], key});
+	attributes.push_back({column[0], column[1], key, not_null});
   }
   tables_[table] = Table(table, attributes);
 }
@@ -216,6 +255,19 @@ void MyCoolDB::Insert(const std::smatch &match) {
   std::vector<std::string> attributes = tokenize(match[4], ',');
   std::vector<std::string> values = tokenize(match[6], ',');
   std::vector<std::string> to_insert(table.columns_.size());
+  for (const auto& x : table.columns_) {
+	bool flag = false;
+	for (const auto& y : attributes) {
+	  if (x.Name() == y && x.NotNull()) {
+		flag = true;
+	  } else if (!x.NotNull()) {
+		flag = true;
+	  }
+	}
+	if (!flag) {
+	  throw std::logic_error ("NOT NULL");
+	}
+  }
   for (size_t i = 0; i < attributes.size(); ++i) {
 	remove_special(values[i]);
 	remove_special(attributes[i]);
@@ -263,23 +315,32 @@ void MyCoolDB::Update(const std::smatch &match) {
 	set = set_match.suffix().str();
   }
 
-  std::regex where_regex("\\s*([^\\s]+)\\s*([=])\\s*([^\\s\\,]+)\\s*");
+  std::regex where_regex(R"(\s*(\w+)\s*(=|IS)\s*(NOT\s*NULL|NULL|'?\w+\'?))");
   std::smatch where_match;
   std::vector<std::pair<std::string, std::string>> conditions;
   std::vector<std::pair<bool, bool>> and_or_vector;
-
   while (std::regex_search(where, where_match, where_regex)) {
 	std::string attribute_name = where_match[1];
 	std::string value = where_match[3];
+	std::string operator_ = where_match[2];
+	remove_special(operator_);
 	remove_special(attribute_name);
 	remove_special(value);
-
-	std::regex and_or_regex("^" "\\s+(AND|OR)");
+	if (operator_ == "IS") {
+	  if (value == "NULL") {
+		value = "NULL";
+	  } else if (value == "NOT NULL") {
+		value = "\\special\\";
+	  }
+	}
+	std::regex and_or_regex("(AND|OR)");
 	std::smatch and_or;
 	bool and_ = false;
 	bool or_ = false;
 	if (std::regex_search(where, and_or, and_or_regex)) {
-	  if (and_or[1] == "OR") {
+	  std::string operator_ = and_or[1];
+	  remove_special(operator_);
+	  if (operator_ == "OR") {
 		or_ = true;
 	  } else {
 		and_ = true;
@@ -299,29 +360,29 @@ void MyCoolDB::Update(const std::smatch &match) {
 	}
 	return;
   }
-  std::vector<Row *> change;
+  std::vector<Row*> change;
   int index = 0;
   for (auto &x : table.data_) {
-	bool flag = true;
-	index = 0;
-	int check = 0;
+	std::vector<bool> conditions_result;
 	for (const auto &cond : conditions) {
-	  if (x.data[cond.first] != cond.second && and_or_vector[index].second) {
-		flag = false;
-		break;
-	  } else if (x.data[cond.first] == cond.second && and_or_vector[index].first) {
-
-	  }
-	  ++check;
-	  if (check == 2) {
-		index = 0;
-		check = 0;
+	  conditions_result.emplace_back((x.data[cond.first].empty() && cond.second == "NULL") || (!x.data[cond.first].empty() && cond.second == "\\special\\") || (x.data[cond.first] == cond.second));
+	}
+	bool flag = conditions_result[0];
+	int j = 1;
+	for (int i = 0; i < conditions_result.size() - 1; ++i) {
+	  if (and_or_vector[i].first) {
+		flag = flag || conditions_result[j];
+		j++;
+	  } else if (and_or_vector[i].second) {
+		flag = flag && conditions_result[j];
+		j++;
 	  }
 	}
 	if (flag) {
 	  change.emplace_back(&x);
 	}
   }
+
   for (auto x : change) {
 	for (const auto &news : attributes_values) {
 	  (*x).data[news.first] = news.second;
@@ -349,16 +410,24 @@ void MyCoolDB::Select(const std::smatch &match) {
 	}
   }
   std::cout << '\n';
-  std::regex where_regex("\\s*([^\\s]+)\\s*([=])\\s*([^\\s\\,]+)\\s*");
+  std::regex where_regex(R"(\s*(\w+)\s*(=|IS)\s*(NOT\s*NULL|NULL|'?\w+\'?))");
   std::smatch where_match;
   std::vector<std::pair<std::string, std::string>> conditions;
   std::vector<std::pair<bool, bool>> and_or_vector;
   while (std::regex_search(where, where_match, where_regex)) {
 	std::string attribute_name = where_match[1];
 	std::string value = where_match[3];
+	std::string operator_ = where_match[2];
+	remove_special(operator_);
 	remove_special(attribute_name);
 	remove_special(value);
-
+	if (operator_ == "IS") {
+	  if (value == "NULL") {
+		value = "NULL";
+	  } else if (value == "NOT NULL") {
+		value = "\\special\\";
+	  }
+	}
 	std::regex and_or_regex("(AND|OR)");
 	std::smatch and_or;
 	bool and_ = false;
@@ -394,32 +463,33 @@ void MyCoolDB::Select(const std::smatch &match) {
 	}
 	return;
   }
+
   std::vector<Row> change;
   int index = 0;
   for (auto &x : table.data_) {
-	bool flag = true;
-	index = 0;
-	int check = 0;
+	std::vector<bool> conditions_result;
 	for (const auto &cond : conditions) {
-	  if (x.data[cond.first] != cond.second && and_or_vector[index].second) {
-		flag = false;
-		break;
-	  } else if (x.data[cond.first] == cond.second && and_or_vector[index].first) {
-
-	  }
-	  ++check;
-	  if (check == 2) {
-		++index;
-		check = 0;
+	  conditions_result.emplace_back((x.data[cond.first].empty() && cond.second == "NULL") || (!x.data[cond.first].empty() && cond.second == "\\special\\") || (x.data[cond.first] == cond.second));
+	}
+	bool flag = conditions_result[0];
+	int j = 1;
+	for (int i = 0; i < conditions_result.size() - 1; ++i) {
+	  if (and_or_vector[i].first) {
+		flag = flag || conditions_result[j];
+		j++;
+	  } else if (and_or_vector[i].second) {
+		flag = flag && conditions_result[j];
+		j++;
 	  }
 	}
 	if (flag) {
 	  change.emplace_back(x);
 	}
   }
+
   for (auto &row : change) {
 	for (const auto &column : columns) {
-	  if (row.data.find(column) != row.data.end()) {
+	  if (!row.data[column].empty()) {
 		std::cout << row.data[column];
 	  } else {
 		std::cout << "NULL";
@@ -517,7 +587,7 @@ void MyCoolDB::Join(const std::smatch &match) {
 		}
 	  }
 	  if (!flag)
-	  unused_left.emplace_back(x);
+		unused_left.emplace_back(x);
 	}
 
 	for (auto x : add_table.data_) {
@@ -528,7 +598,7 @@ void MyCoolDB::Join(const std::smatch &match) {
 		}
 	  }
 	  if (!flag)
-	  unused_right.emplace_back(x);
+		unused_right.emplace_back(x);
 	}
   }
 
