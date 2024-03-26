@@ -1,0 +1,1 @@
+tablename: hello;Attributes: int NOT_KEY id , varchar NOT_KEY name ;Row: 1, Ayaz,;

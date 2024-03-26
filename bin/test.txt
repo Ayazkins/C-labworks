@@ -1,0 +1,2 @@
+CREATE TABLE users (id int PRIMARY_KEY, name varchar NOT_KEY, email varchar NOT_KEY);
+INSERT INTO users (id, name, email) VALUES (1, 'John', 'john@example.com');
